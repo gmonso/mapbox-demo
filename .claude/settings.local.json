@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\compsaonline\\\\projectes\\\\compsaonline\\\\mapbox-demo\" -Force)",
+      "PowerShell(\\(Get-ChildItem -Path \"c:\\\\compsaonline\\\\projectes\\\\compsaonline\\\\mapbox-demo\" -Force -File -Recurse\\).FullName | head -20)",
+      "Bash(git branch *)",
+      "Bash(git remote *)",
+      "Bash(git push *)"
+    ]
+  }
+}
