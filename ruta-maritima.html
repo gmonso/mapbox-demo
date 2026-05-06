@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ruta Marítima – Port de Barcelona</title>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #map { position: absolute; inset: 0; }
+
+    /* ── Panel ── */
+    #panel {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 280px;
+      background: #0f172a;
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.45);
+      z-index: 10;
+      color: #fff;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255,255,255,.1);
+    }
+
+    .header-icon {
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .panel-header h1 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .panel-header p {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    /* ── Llistat de parades ── */
+    .stop-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 8px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background .2s;
+      margin-bottom: 4px;
+    }
+
+    .stop-item:hover { background: rgba(255,255,255,.06); }
+
+    .stop-item.active { background: rgba(56,189,248,.12); }
+
+    .stop-num {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #1e293b;
+      border: 2px solid #334155;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background .2s, border-color .2s, color .2s;
+    }
+
+    .stop-item.active .stop-num {
+      background: #38bdf8;
+      border-color: #38bdf8;
+      color: #0f172a;
+    }
+
+    .stop-item.done .stop-num {
+      background: #22c55e;
+      border-color: #22c55e;
+      color: #fff;
+    }
+
+    .stop-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+
+    .stop-item.active .stop-name { color: #38bdf8; }
+
+    .stop-type {
+      font-size: 11px;
+      color: #475569;
+      margin-top: 2px;
+    }
+
+    /* ── Botó d'inici ── */
+    #btn-start {
+      width: 100%;
+      margin-top: 16px;
+      padding: 13px;
+      background: #38bdf8;
+      color: #0f172a;
+      border: none;
+      border-radius: 11px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .2s, transform .1s;
+    }
+
+    #btn-start:hover:not(:disabled) { background: #7dd3fc; }
+    #btn-start:active:not(:disabled) { transform: scale(.98); }
+    #btn-start:disabled { background: #1e3a5f; color: #475569; cursor: not-allowed; }
+
+    /* ── Marcadors POI ── */
+    .poi-marker {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #38bdf8;
+      border: 3px solid #fff;
+      color: #0f172a;
+      font-size: 13px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 3px 12px rgba(0,0,0,.4);
+      cursor: pointer;
+      transition: transform .2s, background .2s;
+    }
+
+    .poi-marker:hover { transform: scale(1.2); background: #7dd3fc; }
+
+    /* ── Marcador vaixell ── */
+    .boat-marker {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: #fff;
+      border: 3px solid #38bdf8;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 16px rgba(56,189,248,.5);
+    }
+
+    /* ── Popup / Fitxa de lloc ── */
+    .mapboxgl-popup-content {
+      padding: 0 !important;
+      border-radius: 16px !important;
+      overflow: hidden !important;
+      box-shadow: 0 16px 48px rgba(0,0,0,.3) !important;
+    }
+
+    .mapboxgl-popup-close-button {
+      font-size: 20px;
+      color: #fff;
+      padding: 6px 10px;
+      text-shadow: 0 1px 4px rgba(0,0,0,.7);
+      z-index: 2;
+      background: transparent;
+      border: none;
+    }
+
+    .location-card { width: 290px; }
+
+    .card-img {
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .card-body { padding: 14px 16px 0; }
+
+    .card-counter {
+      font-size: 10px;
+      font-weight: 700;
+      color: #94a3b8;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+
+    .card-tag {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #0ea5e9;
+      margin-bottom: 4px;
+    }
+
+    .card-body h2 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 3px;
+      line-height: 1.2;
+    }
+
+    .card-address {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 7px;
+    }
+
+    .card-rating {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 9px;
+    }
+
+    .stars   { color: #f59e0b; font-size: 13px; }
+    .rating-num { font-size: 12px; color: #64748b; }
+
+    .card-desc {
+      font-size: 12px;
+      line-height: 1.6;
+      color: #334155;
+      margin-bottom: 12px;
+    }
+
+    .card-links {
+      display: flex;
+      gap: 8px;
+      padding-bottom: 12px;
+    }
+
+    .card-links a {
+      flex: 1;
+      padding: 7px 4px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      background: #f8fafc;
+      font-size: 11px;
+      font-weight: 600;
+      color: #334155;
+      text-align: center;
+      text-decoration: none;
+      transition: background .15s, border-color .15s;
+    }
+
+    .card-links a:hover {
+      background: #eff6ff;
+      border-color: #38bdf8;
+      color: #0369a1;
+    }
+
+    .btn-continue {
+      display: block;
+      width: calc(100% - 32px);
+      margin: 0 16px 16px;
+      padding: 12px;
+      background: #0f172a;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .2s;
+    }
+
+    .btn-continue:hover { background: #1e293b; }
+    .btn-continue.end { background: #166534; }
+    .btn-continue.end:hover { background: #14532d; }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="panel">
+  <div class="panel-header">
+    <span class="header-icon">⚓</span>
+    <div>
+      <h1>Ruta Marítima</h1>
+      <p>Port de Barcelona · 4 parades</p>
+    </div>
+  </div>
+
+  <div id="stops-list"></div>
+
+  <button id="btn-start">⛵ Inicia la ruta</button>
+</div>
+
+<script>
+  mapboxgl.accessToken = 'pk.eyJ1IjoiZ21vbnNvIiwiYSI6ImNtb3NybmF2cDAyaGYycnMzdW9kajYzOHEifQ.FqTNXCBFPA3_Nu7Z6iwhZQ';
+
+  // ── Parades ──
+  const STOPS = [
+    {
+      name: 'Monument a Colom',
+      coords: [2.1773, 41.3753],
+      tag: 'Monument Històric · 1888',
+      address: 'Pl. del Portal de la Pau, s/n',
+      rating: '4.6', reviews: '42.000',
+      desc: 'Columna de 60 metres construïda per a l\'Exposició Universal de 1888. Des del mirador panoràmic es divisa tota la façana marítima. Curiositat: el dit de Colom apunta al sud-est, no cap a Amèrica.',
+      phone: '+34933025224',
+      web: 'https://www.barcelonaturisme.com',
+    },
+    {
+      name: 'L\'Aquàrium de Barcelona',
+      coords: [2.1820, 41.3738],
+      tag: 'Ciències del Mar · Família',
+      address: 'Moll d\'Espanya del Port Vell, s/n',
+      rating: '4.3', reviews: '56.000',
+      desc: 'Un dels aquàriums marins més grans d\'Europa, amb 11.000 animals de 450 espècies. El cèlebre túnel oceànic de 80m ofereix vistes de 180° entre taurons, raies i milers de peixos tropicals.',
+      phone: '+34932217474',
+      web: 'https://www.aquariumbcn.com',
+    },
+    {
+      name: 'Platja de la Barceloneta',
+      coords: [2.1908, 41.3792],
+      tag: 'Platja Urbana · Patrimoni',
+      address: 'Passeig Marítim de la Barceloneta',
+      rating: '4.4', reviews: '91.000',
+      desc: 'La platja urbana més emblemàtica de Barcelona, recuperada pels JJ.OO. de 1992. El barri de la Barceloneta, d\'origen pescador del s. XVIII, conserva l\'esperit autèntic entre els moderns gratacels.',
+      phone: null,
+      web: 'https://www.barcelona.cat',
+    },
+    {
+      name: 'Port Olímpic',
+      coords: [2.1975, 41.3858],
+      tag: 'Port Esportiu · JJ.OO. 1992',
+      address: 'Moll de Gregal, Port Olímpic',
+      rating: '4.2', reviews: '38.000',
+      desc: 'Construït per als Jocs Olímpics del 92, acull avui 742 embarcacions i una extensa oferta gastronòmica. Als seus peus s\'alcen la Torre Mapfre i l\'Hotel Arts, símbols de la Barcelona olímpica.',
+      phone: '+34932210686',
+      web: 'https://www.portolimpic.es',
+    },
+  ];
+
+  // ── Ruta manual pel port (no Directions API — és mar!) ──
+  // Indices on es troben les parades: 3, 6, 9, 12
+  const ROUTE_COORDS = [
+    [2.157,  41.362],   // 0 - Entrada port exterior
+    [2.165,  41.368],   // 1 - Terminal creuers
+    [2.172,  41.373],   // 2 - Aproximació Colom
+    [2.1773, 41.3753],  // 3 ► PARADA 1: Monument a Colom
+    [2.179,  41.374],   // 4 - Navegant est
+    [2.181,  41.374],   // 5 - Moll d'Espanya
+    [2.1820, 41.3738],  // 6 ► PARADA 2: Aquàrium
+    [2.185,  41.374],   // 7 - Sortida port interior
+    [2.188,  41.376],   // 8 - Costa Barceloneta
+    [2.1908, 41.3792],  // 9 ► PARADA 3: Barceloneta
+    [2.193,  41.381],   // 10 - Cap nord-est
+    [2.195,  41.384],   // 11 - Aproximació Port Olímpic
+    [2.1975, 41.3858],  // 12 ► PARADA 4: Port Olímpic
+  ];
+
+  const POI_IDX = [3, 6, 9, 12]; // Posicions de cada parada a ROUTE_COORDS
+
+  // ── Mapa ──
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+    center: [2.178, 41.376],
+    zoom: 13,
+  });
+
+  map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+  // ── Popup ──
+  const popup = new mapboxgl.Popup({ offset: 28, maxWidth: '310px', closeOnClick: false });
+
+  // ── Marcador vaixell ──
+  const boatEl = document.createElement('div');
+  boatEl.className = 'boat-marker';
+  boatEl.innerHTML = '⛵';
+  boatEl.style.display = 'none';
+  const boatMarker = new mapboxgl.Marker(boatEl).setLngLat(ROUTE_COORDS[0]).addTo(map);
+
+  // ── Construeix el panel de parades ──
+  const stopsList = document.getElementById('stops-list');
+  STOPS.forEach((s, i) => {
+    const div = document.createElement('div');
+    div.className = 'stop-item';
+    div.dataset.idx = i;
+    div.innerHTML = `
+      <div class="stop-num">${i + 1}</div>
+      <div>
+        <div class="stop-name">${s.name}</div>
+        <div class="stop-type">${s.tag.split(' · ')[0]}</div>
+      </div>`;
+    div.addEventListener('click', () => flyToStop(i));
+    stopsList.appendChild(div);
+  });
+
+  // ── Marcadors POI ──
+  STOPS.forEach((s, i) => {
+    const el = document.createElement('div');
+    el.className = 'poi-marker';
+    el.textContent = i + 1;
+    el.addEventListener('click', () => flyToStop(i));
+    new mapboxgl.Marker(el).setLngLat(s.coords).addTo(map);
+  });
+
+  // ── Dibuixa la ruta ──
+  map.on('load', () => {
+    map.addSource('route', {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: ROUTE_COORDS },
+      },
+    });
+
+    map.addLayer({
+      id: 'route-glow',
+      type: 'line',
+      source: 'route',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#38bdf8', 'line-width': 14, 'line-opacity': .18 },
+    });
+
+    map.addLayer({
+      id: 'route-line',
+      type: 'line',
+      source: 'route',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': '#38bdf8',
+        'line-width': 3,
+        'line-dasharray': [2, 3],
+      },
+    });
+  });
+
+  // ── Helpers ──
+  function setActiveStop(idx) {
+    document.querySelectorAll('.stop-item').forEach((el, i) => {
+      el.classList.toggle('active', i === idx);
+      el.classList.toggle('done', idx > 0 && i < idx);
+    });
+  }
+
+  function interpolate(coords, t) {
+    const n = coords.length - 1;
+    const s = t * n;
+    const i = Math.min(Math.floor(s), n - 1);
+    const f = s - i;
+    return [
+      coords[i][0] + f * (coords[i + 1][0] - coords[i][0]),
+      coords[i][1] + f * (coords[i + 1][1] - coords[i][1]),
+    ];
+  }
+
+  function buildCard(idx) {
+    const s = STOPS[idx];
+    const isLast = idx === STOPS.length - 1;
+
+    const imgUrl = `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/`
+      + `pin-s+38bdf8(${s.coords[0]},${s.coords[1]})/`
+      + `${s.coords[0]},${s.coords[1]},16,0/560x300@2x`
+      + `?access_token=${mapboxgl.accessToken}`;
+
+    const phoneLink = s.phone
+      ? `<a href="tel:${s.phone}">📞 Trucar</a>`
+      : `<a style="opacity:.35;pointer-events:none;cursor:default">📞 –</a>`;
+
+    const continueLabel = isLast ? '🏁 Fi de la ruta' : `Parada ${idx + 2} →`;
+    const continueCls   = isLast ? 'btn-continue end' : 'btn-continue';
+    const continueAct   = isLast ? 'endTour()' : 'continueRoute()';
+
+    return `
+      <div class="location-card">
+        <img class="card-img" src="${imgUrl}" alt="${s.name}" />
+        <div class="card-body">
+          <div class="card-counter">Parada ${idx + 1} de ${STOPS.length}</div>
+          <div class="card-tag">${s.tag}</div>
+          <h2>${s.name}</h2>
+          <div class="card-address">📍 ${s.address}</div>
+          <div class="card-rating">
+            <span class="stars">★★★★★</span>
+            <span class="rating-num">${s.rating} · ${s.reviews} ressenyes</span>
+          </div>
+          <p class="card-desc">${s.desc}</p>
+          <div class="card-links">
+            ${phoneLink}
+            <a href="${s.web}" target="_blank" rel="noopener">🌐 Web</a>
+          </div>
+        </div>
+        <button class="${continueCls}" onclick="${continueAct}">${continueLabel}</button>
+      </div>`;
+  }
+
+  function showStopPopup(idx) {
+    popup.setLngLat(STOPS[idx].coords).setHTML(buildCard(idx)).addTo(map);
+  }
+
+  // ── Navegar a una parada des del panel ──
+  function flyToStop(idx) {
+    if (animFrame) cancelAnimationFrame(animFrame);
+    animFrame = null;
+    boatEl.style.display = 'none';
+    setActiveStop(idx);
+    map.flyTo({ center: STOPS[idx].coords, zoom: 15.5, duration: 900 });
+    setTimeout(() => showStopPopup(idx), 900);
+  }
+
+  // ── Animació ──
+  let animFrame  = null;
+  let currentPoi = -1;
+  const SEG_MS   = 3500; // ms per segment
+
+  function getSegmentCoords(segIdx) {
+    const from = segIdx === 0 ? 0 : POI_IDX[segIdx - 1];
+    const to   = POI_IDX[segIdx];
+    return ROUTE_COORDS.slice(from, to + 1);
+  }
+
+  function animateSegment(segIdx) {
+    if (segIdx >= STOPS.length) return;
+    popup.remove();
+    boatEl.style.display = 'flex';
+    setActiveStop(-1);
+
+    const coords = getSegmentCoords(segIdx);
+    const start  = performance.now();
+
+    function step(now) {
+      const t = Math.min((now - start) / SEG_MS, 1);
+      boatMarker.setLngLat(interpolate(coords, t));
+
+      if (t < 1) {
+        animFrame = requestAnimationFrame(step);
+      } else {
+        // Arribada!
+        currentPoi = segIdx;
+        boatMarker.setLngLat(STOPS[segIdx].coords);
+        setActiveStop(segIdx);
+        map.flyTo({ center: STOPS[segIdx].coords, zoom: 15.5, duration: 900 });
+        setTimeout(() => showStopPopup(segIdx), 900);
+
+        const btn = document.getElementById('btn-start');
+        btn.disabled = false;
+        btn.textContent = segIdx === STOPS.length - 1
+          ? '↩ Torna a fer la ruta'
+          : '⏸ En pausa';
+      }
+    }
+
+    animFrame = requestAnimationFrame(step);
+
+    const btn = document.getElementById('btn-start');
+    btn.disabled = true;
+    btn.textContent = `⛵ Navegant a parada ${segIdx + 1}…`;
+  }
+
+  // Cridat des del botó "Continua" del popup
+  window.continueRoute = function () {
+    popup.remove();
+    const next = currentPoi + 1;
+    if (next < STOPS.length) {
+      map.easeTo({ zoom: 13.5, duration: 600 });
+      setTimeout(() => animateSegment(next), 700);
+    }
+  };
+
+  window.endTour = function () {
+    popup.remove();
+    setActiveStop(-1);
+    document.querySelectorAll('.stop-item').forEach(el => el.classList.add('done'));
+    const btn = document.getElementById('btn-start');
+    btn.disabled = false;
+    btn.textContent = '↩ Torna a fer la ruta';
+    map.flyTo({ center: [2.178, 41.376], zoom: 13, duration: 1200 });
+  };
+
+  // ── Botó principal ──
+  document.getElementById('btn-start').addEventListener('click', () => {
+    if (animFrame) cancelAnimationFrame(animFrame);
+    popup.remove();
+    currentPoi = -1;
+    boatMarker.setLngLat(ROUTE_COORDS[0]);
+    document.querySelectorAll('.stop-item').forEach(el => {
+      el.classList.remove('done', 'active');
+    });
+    map.flyTo({ center: [2.178, 41.376], zoom: 13, duration: 700 });
+    setTimeout(() => animateSegment(0), 800);
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mapbox – Demo de Ruta</title>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #map { position: absolute; inset: 0; }
+
+    /* ── Panel lateral ── */
+    #panel {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 270px;
+      background: #fff;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.18);
+      z-index: 10;
+    }
+
+    #panel h1 { font-size: 16px; font-weight: 700; color: #111; margin-bottom: 3px; }
+    #panel .subtitle { font-size: 12px; color: #888; margin-bottom: 16px; }
+
+    .point {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 0;
+    }
+    .point + .point { border-top: 1px solid #f0f0f0; }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
+    .dot.origin      { background: #22c55e; }
+    .dot.destination { background: #ef4444; }
+
+    .point-label { font-size: 13px; font-weight: 600; color: #222; }
+    .point-sub   { font-size: 11px; color: #999; margin-top: 2px; }
+
+    #route-stats {
+      display: none;
+      gap: 0;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .stat { flex: 1; text-align: center; }
+    .stat-value { font-size: 22px; font-weight: 700; color: #111; }
+    .stat-unit  { font-size: 11px; color: #888; margin-top: 1px; }
+
+    .stat-divider {
+      width: 1px;
+      background: #f0f0f0;
+      margin: 4px 0;
+    }
+
+    #btn-simulate {
+      width: 100%;
+      margin-top: 16px;
+      padding: 12px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, transform .1s;
+    }
+    #btn-simulate:hover:not(:disabled) { background: #2563eb; }
+    #btn-simulate:active:not(:disabled) { transform: scale(.98); }
+    #btn-simulate:disabled { background: #93c5fd; cursor: not-allowed; }
+
+    /* ── Marcador mòbil ── */
+    .marker-circle {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 3px solid #fff;
+      box-shadow: 0 3px 12px rgba(0,0,0,.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    /* ── Popup / Fitxa de lloc ── */
+    .mapboxgl-popup-content {
+      padding: 0 !important;
+      border-radius: 14px !important;
+      overflow: hidden !important;
+      box-shadow: 0 12px 40px rgba(0,0,0,.22) !important;
+    }
+
+    .mapboxgl-popup-close-button {
+      font-size: 20px;
+      color: #fff;
+      padding: 4px 10px;
+      text-shadow: 0 1px 4px rgba(0,0,0,.6);
+      z-index: 2;
+      background: transparent;
+      border: none;
+    }
+
+    .location-card { width: 280px; }
+
+    .card-img {
+      width: 100%;
+      height: 148px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .card-body { padding: 14px 16px 16px; }
+
+    .card-tag {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #3b82f6;
+      margin-bottom: 5px;
+    }
+
+    .card-body h2 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 3px;
+    }
+
+    .card-address {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    .card-rating {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 9px;
+    }
+    .stars   { color: #f59e0b; font-size: 13px; }
+    .rating-num { font-size: 12px; color: #666; }
+
+    .card-desc {
+      font-size: 12px;
+      line-height: 1.55;
+      color: #444;
+      margin-bottom: 13px;
+    }
+
+    .card-actions { display: flex; gap: 8px; }
+
+    .card-actions a {
+      flex: 1;
+      padding: 8px 4px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 8px;
+      background: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      color: #374151;
+      text-align: center;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background .15s, border-color .15s, color .15s;
+    }
+    .card-actions a:hover {
+      background: #eff6ff;
+      border-color: #3b82f6;
+      color: #2563eb;
+    }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- Panel d'informació -->
+<div id="panel">
+  <h1>Demo de Ruta</h1>
+  <p class="subtitle">Fes clic al marcador destí o simula el trajecte</p>
+
+  <div class="point">
+    <span class="dot origin"></span>
+    <div>
+      <div class="point-label">Origen</div>
+      <div class="point-sub">Aeroport del Prat, Barcelona</div>
+    </div>
+  </div>
+
+  <div class="point">
+    <span class="dot destination"></span>
+    <div>
+      <div class="point-label">Destí</div>
+      <div class="point-sub">Sagrada Família, Barcelona</div>
+    </div>
+  </div>
+
+  <div id="route-stats" style="display:flex">
+    <div class="stat">
+      <div class="stat-value" id="stat-dist">–</div>
+      <div class="stat-unit">km</div>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat">
+      <div class="stat-value" id="stat-time">–</div>
+      <div class="stat-unit">minuts</div>
+    </div>
+  </div>
+
+  <button id="btn-simulate">▶ Simula el trajecte</button>
+</div>
+
+<script>
+  // ─────────────────────────────────────────────
+  //  TOKEN: substitueix per el teu token de Mapbox
+  //  https://account.mapbox.com/access-tokens/
+  // ─────────────────────────────────────────────
+  mapboxgl.accessToken = 'pk.eyJ1IjoiZ21vbnNvIiwiYSI6ImNtb3NybmF2cDAyaGYycnMzdW9kajYzOHEifQ.FqTNXCBFPA3_Nu7Z6iwhZQ'; //'pk.eyJ1IjoiZ2VyYXJkbW9uc28iLCJhIjoiY21hY3kwYnZ3MDRxeDJrc2l0YW82OGhrcCJ9.Gk0Pc4uRMEqcZkFrLbTHcg';
+
+  const ORIGIN      = [2.0785, 41.2974];   // Aeroport del Prat
+  const DESTINATION = [2.1744, 41.4036];   // Sagrada Família
+
+  // ── Mapa ──
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/streets-v12',
+    center: [2.126, 41.355],
+    zoom: 11.2,
+  });
+
+  map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+  // ── Marcador origen ──
+  const originEl = document.createElement('div');
+  originEl.className = 'marker-circle';
+  originEl.style.background = '#22c55e';
+  originEl.innerHTML = '🏠';
+
+  new mapboxgl.Marker(originEl)
+    .setLngLat(ORIGIN)
+    .addTo(map);
+
+  // ── Marcador destí ──
+  const destEl = document.createElement('div');
+  destEl.className = 'marker-circle';
+  destEl.style.background = '#ef4444';
+  destEl.innerHTML = '📍';
+
+  const destMarker = new mapboxgl.Marker(destEl)
+    .setLngLat(DESTINATION)
+    .addTo(map);
+
+  // ── Marcador mòbil (vehicle) ──
+  const carEl = document.createElement('div');
+  carEl.className = 'marker-circle';
+  carEl.style.background = '#3b82f6';
+  carEl.style.display = 'none';
+  carEl.innerHTML = '🚗';
+  const carMarker = new mapboxgl.Marker(carEl).setLngLat(ORIGIN).addTo(map);
+
+  // ── Popup amb fitxa del lloc ──
+  const popup = new mapboxgl.Popup({ offset: 28, maxWidth: '300px', closeOnClick: false });
+
+  function buildCard() {
+    // La imatge és un mapa estàtic de Mapbox centrat al destí
+    // Pots substituir-la per una imatge de la teva web:
+    //   <img class="card-img" src="https://la-teva-web.com/img/sagrada-familia.jpg" ... />
+    const imgUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/`
+      + `pin-s-star+ef4444(${DESTINATION[0]},${DESTINATION[1]})/`
+      + `${DESTINATION[0]},${DESTINATION[1]},15,0/`
+      + `560x296@2x?access_token=${mapboxgl.accessToken}`;
+
+    return `
+      <div class="location-card">
+        <img class="card-img" src="${imgUrl}" alt="Sagrada Família" />
+        <div class="card-body">
+          <div class="card-tag">Monument · Patrimoni UNESCO</div>
+          <h2>Sagrada Família</h2>
+          <div class="card-address">📍 C/ de Mallorca, 401 · Barcelona</div>
+          <div class="card-rating">
+            <span class="stars">★★★★★</span>
+            <span class="rating-num">4.8 · 187.000 ressenyes</span>
+          </div>
+          <p class="card-desc">
+            Basílica modernista dissenyada per Antoni Gaudí, declarada
+            Patrimoni de la Humanitat per la UNESCO. Construcció iniciada el 1882,
+            prevista finalitzar el 2026.
+          </p>
+          <div class="card-actions">
+            <a href="tel:+34932080414">📞 Trucar</a>
+            <a href="https://sagradafamilia.org" target="_blank" rel="noopener">🌐 Web</a>
+            <a href="https://maps.google.com/?q=Sagrada+Família,Barcelona" target="_blank" rel="noopener">🗺️ Maps</a>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function showPopup() {
+    popup.setLngLat(DESTINATION).setHTML(buildCard()).addTo(map);
+  }
+
+  // Clic al marcador destí → obre fitxa
+  destMarker.getElement().addEventListener('click', showPopup);
+
+  // ── Ruta ──
+  let routeCoords = [];
+
+  async function fetchRoute() {
+    try {
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/`
+        + `${ORIGIN.join(',')};${DESTINATION.join(',')}`
+        + `?geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`;
+
+      const data = await fetch(url).then(r => r.json());
+      const route = data.routes[0];
+      routeCoords = route.geometry.coordinates;
+
+      // Estadístiques
+      document.getElementById('stat-dist').textContent = (route.distance / 1000).toFixed(1);
+      document.getElementById('stat-time').textContent = Math.round(route.duration / 60);
+      document.getElementById('route-stats').style.display = 'flex';
+
+      // Dibuixa la ruta
+      map.addSource('route', { type: 'geojson', data: route.geometry });
+
+      map.addLayer({
+        id: 'route-shadow',
+        type: 'line',
+        source: 'route',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#1e3a8a', 'line-width': 12, 'line-opacity': .12 },
+      });
+
+      map.addLayer({
+        id: 'route-line',
+        type: 'line',
+        source: 'route',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#3b82f6', 'line-width': 5 },
+      });
+    } catch (e) {
+      console.error('Error carregant la ruta:', e);
+    }
+  }
+
+  // ── Animació del vehicle ──
+  const ANIM_MS = 7000;
+  let animFrame = null;
+
+  function startAnimation() {
+    if (!routeCoords.length) return;
+
+    const btn = document.getElementById('btn-simulate');
+    btn.disabled = true;
+    btn.textContent = '⏳ En trajecte…';
+    popup.remove();
+    carEl.style.display = 'flex';
+    carMarker.setLngLat(ORIGIN);
+
+    // Fes zoom per mostrar tota la ruta
+    map.fitBounds([ORIGIN, DESTINATION], { padding: 80, duration: 800 });
+
+    const start = performance.now();
+    const last  = routeCoords.length - 1;
+
+    function step(now) {
+      const t   = Math.min((now - start) / ANIM_MS, 1);
+      const idx = Math.round(t * last);
+      carMarker.setLngLat(routeCoords[idx]);
+
+      if (t < 1) {
+        animFrame = requestAnimationFrame(step);
+      } else {
+        // Ha arribat! Obre la fitxa
+        carMarker.setLngLat(DESTINATION);
+        carEl.style.display = 'none';
+
+        map.flyTo({ center: DESTINATION, zoom: 15.5, duration: 1200 });
+        setTimeout(showPopup, 1000);
+
+        btn.disabled = false;
+        btn.textContent = '↩ Torna a simular';
+      }
+    }
+
+    animFrame = requestAnimationFrame(step);
+  }
+
+  // ── Arrencada ──
+  map.on('load', fetchRoute);
+
+  document.getElementById('btn-simulate').addEventListener('click', () => {
+    if (animFrame) cancelAnimationFrame(animFrame);
+    startAnimation();
+  });
+</script>
+
+</body>
+</html>
